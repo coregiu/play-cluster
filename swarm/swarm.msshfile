@@ -1,0 +1,32 @@
+﻿#           os: centos7_x64
+#  yum mirrors: https://mirrors.tuna.tsinghua.edu.cn/help/centos/
+#docker source: mirrors.tuna.tsinghua.edu.cn
+#docker mirror: https://d8b3zdiw.mirror.aliyuncs.com
+
+[common]
+CONSTANT docker.source mirrors.tuna.tsinghua.edu.cn/docker-ce
+PUSH force ./material/CentOS-7-TUNA.repo /etc/yum.repos.d/
+PUSH force ./material/docker-ce.repo /etc/yum.repos.d/
+RUN mv /etc/yum.repos.d/CentOS-Base.repo /etc/yum.repos.d/CentOS-Base.repo.bak; \
+    sed -i 's+download.docker.com+#{docker.source}#+' /etc/yum.repos.d/docker-ce.repo; \
+    yum clean all; \
+	yum makecache; \
+	yum -y upgrade; \
+	yum install -y docker-ce; \
+	mkdir -p /etc/docker;
+PUSH force ./material/daemon.json /etc/docker/
+RUN systemctl daemon-reload; \
+    systemctl restart docker; \
+	systemctl enable docker;
+
+[master]
+USE common
+RUN ignore-error docker swarm init --advertise-addr #{ip}#
+RECORD global.join.command docker swarm join-token worker -q
+WAIT group nodes all
+RUN docker node ls
+
+[nodes]
+USE common
+WAIT variable global.join.command != ""
+RUN ignore-error docker swarm join --token #{global.join.command}# #{global.master.ips}#:2377

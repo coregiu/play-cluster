@@ -1,0 +1,58 @@
+﻿#               os: centos7_x64
+#       ntp server: time.pool.aliyun.com
+#kubernetes images: registry.cn-hangzhou.aliyuncs.com/google_containers 
+#    docker source: http://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo
+#      yum mirrors: http://mirrors.aliyun.com/repo/Centos-7.repo
+#    docker mirror: https://d8b3zdiw.mirror.aliyuncs.com
+#kubernetes source: http://mirrors.aliyun.com/kubernetes/yum/repos
+
+[constants]
+CONSTANT system.ntp.server time.pool.aliyun.com
+CONSTANT yum.repos.base  http://mirrors.aliyun.com/repo/Centos-7.repo
+CONSTANT yum.repos.docker  http://mirrors.aliyun.com/docker-ce/linux/centos/docker-ce.repo
+CONSTANT docker.registry.mirror https://d8b3zdiw.mirror.aliyuncs.com
+CONSTANT k8s.images.source registry.aliyuncs.com/google_containers
+CONSTANT k8s.version v1.16.1
+CONSTANT flannel.image.source quay-mirror.qiniu.com
+CONSTANT flannel.version v0.11.0
+
+[install]
+USE constants
+PUSH force ./material/kubernetes.repo /etc/yum.repos.d/
+RENDER force ./material/set-envionment.sh /tmp/set-envionment.sh
+RENDER force ./material/install-docker.sh /tmp/install-docker.sh
+RUN chmod +x /tmp/set-envionment.sh; \
+    chmod +x /tmp/install-docker.sh; \
+	/tmp/set-envionment.sh; \
+	/tmp/install-docker.sh; \
+	rm -rf /tmp/set-envionment.sh; \
+	rm -rf /tmp/install-docker.sh; \
+	yum install -y kubelet kubeadm kubectl --disableexcludes=kubernetes; \
+	systemctl enable --now kubelet; \
+	systemctl enable kubelet.service;  
+
+[master]
+USE install	
+PUSH force ./material/kube-flannel.yml /tmp/
+RENDER force ./material/install-kubernetes-master.sh /tmp/install-kubernetes-master.sh
+RUN chmod +x /tmp/install-kubernetes-master.sh; \
+	/tmp/install-kubernetes-master.sh; \
+	rm -rf /tmp/install-kubernetes-master.sh; \
+	rm -rf /tmp/kube-flannel.yml; 
+RECORD global.join.token kubeadm token create --ttl 10m
+RECORD global.join.sha256 openssl x509 -pubkey -in /etc/kubernetes/pki/ca.crt | openssl rsa -pubin -outform der 2>/dev/null | openssl dgst -sha256 -hex | sed 's/^.* //'
+WAIT group minions all
+RUN kubectl get node;
+
+[minions]
+USE install
+RENDER force ./material/install-kubernetes-minion.sh /tmp/install-kubernetes-minion.sh
+RUN chmod +x /tmp/install-kubernetes-minion.sh; \
+	/tmp/install-kubernetes-minion.sh; \
+	rm -rf /tmp/install-kubernetes-minion; 
+WAIT variable global.join.token != ""
+WAIT variable global.join.sha256 != ""
+RUN kubeadm join #{global.master.ips}#:6443 --token #{global.join.token}# \
+    --discovery-token-ca-cert-hash sha256:#{global.join.sha256}# 
+
+	

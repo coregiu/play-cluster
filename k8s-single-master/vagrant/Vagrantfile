@@ -1,0 +1,31 @@
+Vagrant.configure("2") do |config| 
+    $num_of_minions = 2
+
+    config.vm.define "k8s-single-master-master" do |master|
+        master.vm.box = "centos7_hyper"
+        master.vm.hostname = "k8s.master"
+        master.vm.network "public_network", bridge: "Default Switch"
+        master.vm.provider "hyperv" do |h|
+            h.cpus = 2
+            h.memory = 1024
+            h.maxmemory = 2024
+            h.vmname = "k8s.master"
+        end
+        master.vm.provision "shell", path: "./scripts/config-sshd.sh"
+    end
+
+    (1..$num_of_minions).each do |i|
+        config.vm.define "k8s-single-master-minion#{i}" do |minion|
+            minion.vm.box = "centos7_hyper"
+            minion.vm.hostname = "k8s.minion.#{i}"
+            minion.vm.network "public_network", bridge: "Default Switch"
+            minion.vm.provider "hyperv" do |h|
+                h.cpus = 1
+                h.memory = 512
+                h.maxmemory = 1024
+                h.vmname = "k8s.minion.#{i}"
+            end
+            minion.vm.provision "shell", path: "./scripts/config-sshd.sh"
+        end
+    end
+end

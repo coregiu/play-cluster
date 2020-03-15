@@ -1,0 +1,31 @@
+Vagrant.configure("2") do |config|
+    $num_of_workers = 3
+
+    config.vm.define "manager" do |manager|
+        manager.vm.box = "centos7_hyper"
+        manager.vm.hostname = "manager"
+        manager.vm.network "public_network", bridge: "Default Switch"
+        manager.vm.provider "hyperv" do |h|
+            h.cpus = 1
+            h.memory = 1024
+            h.maxmemory = 1024
+            h.vmname = "manager"
+        end
+        manager.vm.provision "shell", path: "./scripts/config-sshd.sh"
+    end
+
+    (1..$num_of_workers).each do |i|
+        config.vm.define "worker#{i}" do |worker|
+            worker.vm.box = "centos7_hyper"
+            worker.vm.hostname = "worker#{i}"
+            worker.vm.network "public_network", bridge: "Default Switch"
+            worker.vm.provider "hyperv" do |h|
+                h.cpus = 1
+                h.memory = 512
+                h.maxmemory = 1024
+                h.vmname = "worker#{i}"
+            end
+            worker.vm.provision "shell", path: "./scripts/config-sshd.sh"
+        end
+    end
+end

@@ -1,0 +1,8 @@
+﻿[master]
+172.17.29.136
+
+[minions]
+172.17.29.[133,130]
+
+[master.config,minions.config]
+port="22", user="root", password="vagrant"
